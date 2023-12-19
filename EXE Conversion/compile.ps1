@@ -1,0 +1,1 @@
+gcc ./ls_read.c -o "ls_read.exe"
