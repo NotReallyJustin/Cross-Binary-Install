@@ -93,12 +93,89 @@ void dealloc_str_arr(char** str_arr, int size)
     free(str_arr);
 }
 
+/**
+ * Return the size (read: number of chars since 1 char == 1 byte) of a given file.
+ * @param file Pointer to the file object
+ * @return The number of chars in the file
+*/
+long get_file_size(FILE* file)
+{
+    // If we have nullptr, file size basically does not exist
+    if (file == NULL)
+    {
+        return 0;
+    }
+
+    // Now, we use fseek to jump the pointer to the end of the file, and then ftell will tell us how many bytes we moved
+    // fseek returns 0 if successful
+    if (fseek(file, 0, SEEK_END) == 0)
+    {
+        long byte_size = ftell(file);
+
+        // Return the fseek back to the start of file to not mess with fgets
+        fseek(file, 0, SEEK_SET);
+
+        return byte_size;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+/**
+ * Read all the files given in $file_names, and outputs their content into write_path
+ * @param file_names An array of file names to read
+ * @param size The size of the file_names array
+ * @param write_path File path to write to
+*/
+void spill_file_contents(char** file_names, int size, char* write_path)
+{
+    FILE* write_file = fopen(write_path, "ab");
+
+    // First, let's make sure the file we're writing to actually exists
+    if (write_file == NULL) 
+    { 
+        puts("Write file path does not exist.");
+        return;
+    }
+
+    // Now, we iterate through all the files
+    for (int i = 0; i < size; i++)
+    {
+        FILE* read_file = fopen(file_names[i], "rb");
+
+        // Let's actually make sure the file exists. If it doesn't, continue.
+        if (read_file == NULL)
+        {
+            continue;
+        }
+
+        fprintf(write_file, file_names[i]);
+        fprintf(write_file, "\n--------\n");
+
+        // Read the file, and output its contents into write_file. Remember we are dynamically allocating this string.
+        // Realistically, we won't need *this* much memory. This size is the "worst case scenario"
+        long file_contents_size = get_file_size(read_file);
+        char* file_contents = malloc(file_contents_size);
+
+        // fread does read in binary mode, but ASCII values will still be displayed normally
+        fread(file_contents, file_contents_size, 1, read_file);
+        fwrite(file_contents, file_contents_size, 1, write_file);
+
+        fprintf(write_file, "\n\n");
+
+        // Stop them memory leaks 😤
+        free(file_contents);
+    }
+}
+
 int main()
 {
     int size;
     char** dir_names = enumerate_directory("./*", &size);
 
-    print_str_arr(dir_names, size);
+    spill_file_contents(dir_names, size, "./ls_content.txt");
     dealloc_str_arr(dir_names, size);
     return 0;
 }
