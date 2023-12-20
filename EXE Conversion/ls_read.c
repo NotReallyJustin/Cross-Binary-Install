@@ -10,11 +10,6 @@
  * @note Be very careful with the directory path in C. This matches FILES, not actual paths. (Basically, you will need "./*").
  * @return Array of file names (string array)
 */
-/**
- * Given a directory, enumerate all the files there
- * @param directory A string representing the directory path (relative)
- * @note Be very careful with the directory path in C. This matches FILES, not actual paths. (Basically, you will need "./*"). Damn.
-*/
 char** enumerate_directory(char* directory, int* arr_size)
 {
     // This tracks the current array size and the number of items that exists
