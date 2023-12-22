@@ -165,6 +165,68 @@ void spill_file_contents(char** file_names, int size, char* write_path)
     }
 }
 
+/**
+ * Read all the files given in $file_names, and outputs their content in JSON
+ * @param file_names An array of file names to read
+ * @param size The size of the file_names array
+ * @note By calling this function, you must deallocate json_string
+ * @return JSON string
+*/
+char* spill_file_json(char** file_names, int size)
+{
+    // Create our JSON string. Let's add a size object to determine the number of items in it.
+    char* json_string;
+    int json_size = 0;
+
+    // Add { to beginning of JSON. To do that, we will need to allocate 1 byte.
+    json_size++;
+    json_string = realloc(json_string, json_size);
+    strcat(json_string, "{");
+
+    // First, let's iterate through the files.
+    for (int i = 0; i < size; i++)
+    {
+        FILE* read_file = fopen(file_names[i], "rb");
+
+        // Let's actually make sure the file exists. If it doesn't, continue.
+        if (read_file == NULL)
+        {
+            continue;
+        }
+
+        // Add "{File Name}": to the JSON string.
+        json_size += 3 + strlen(file_names[i]);
+        json_string = realloc(json_string, json_size);
+        strcat(json_string, "\"");
+        strcat(json_string, file_names[i]);
+        strcat(json_string, "\":");
+
+        // Read the file, and put the needed items into the JSON string. Basically, we want "{File Content}",
+        // Remember, we are still dynamically allocating this. Hence, we will need the file size (read: number of chars in file)
+        long file_contents_size = get_file_size(read_file);
+        char* file_contents = malloc(file_contents_size);       // We will transfer this over via strcat
+        fread(file_contents, file_contents_size, 1, read_file);
+        
+        // Actually write the string here
+        json_size += file_contents_size + 3;
+        json_string = realloc(json_string, json_size);
+
+        strcat(json_string, "\"");
+        strcat(json_string, file_contents);
+        strcat(json_string, "\",");
+
+        // Stop them memory leaks 😤
+        free(file_contents);
+    }
+
+    // Close the JSON at the end
+    json_size++;
+    json_string = realloc(json_string, json_size);
+    strcat(json_string, "}");
+
+    return json_string;
+}
+
 int main()
 {
     int size;
