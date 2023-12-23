@@ -166,17 +166,106 @@ void spill_file_contents(char** file_names, int size, char* write_path)
 }
 
 /**
+ * Prints a string (including null bytes!) up to $size size
+ * @param str String to print
+ * @param size Size of String. Must be >= 0
+ * @param show_null Show null bytes as "\0" instead of concealing it
+*/
+void print_mem(char* str, int size, boolean show_null)
+{
+    if (size < 0)
+    {
+        return;
+    }
+
+    for (int i = 0; i < size; i++)
+    {
+        if (str[i] == '\0' && show_null)
+        {
+            printf("\\0");
+        }
+        else
+        {
+            printf("%c", str[i]);
+        }
+    }
+
+    puts("");
+}
+
+/**
+ * Performs a memory concatenation that automatically reallocates the existing destination string and copies source for $size bytes.
+ * 🌟Sometimes, this is necessary when you're dealing with strings that contain internal null bytes (likely from reading a binary file)
+ * @param dest Pointer to destination string. This will be malloc'd
+ * @param injection_idx "string index" to inject the new items
+ * @param source Source string
+ * @param size Number of bytes (read: chars) to copy. 🚨 THIS ASSUMES YOU ADDED THE NULL TERMINATOR 🚨
+ * @param str_len Pointer to string length item. This will get incremented by $size
+*/
+void concat_mem(char** dest, int injection_idx, char* source, int size, int* str_len)
+{
+    // Allocate new memory.
+    // We're subtracting 1 from this, since copying the null terminator doesn't change our string size (since we overwrote a null terminator)
+    *str_len = *str_len + size - 1;
+    *dest = realloc(*dest, *str_len);
+
+    // Copy $size bytes
+    memcpy(*dest + injection_idx, source, size);
+}
+
+/**
+ * Performs a memory concatenation. However, strings will get concatenated as \" instead.
+ * It's reccomended to not use this function unless you are 100% sure you might deal with \"
+ * @param dest Pointer to destination string. This will be malloc'd
+ * @param injection_idx "string index" to inject the new items
+ * @param source Source string
+ * @param size Number of bytes (read: chars) to copy. 🚨 THIS ASSUMES YOU ADDED THE NULL TERMINATOR 🚨
+ * @param str_len Pointer to string length item. This will get incremented by $size
+*/
+void concat_str_mem(char** dest, int injection_idx, char* source, int size, int* str_len)
+{
+    // Allocate new memory FOR NOW.
+    // This will get realloc'd if we see a \"
+    *str_len = *str_len + size - 1;
+    *dest = realloc(*dest, *str_len);
+    
+    // We will have 2 loop control variables here: i to loop through source, and curr_idx to loop and update the destination
+    for (int i = 0, curr_idx = injection_idx; i < size; i++, curr_idx++)
+    {
+        if (source[i] == '"')
+        {
+            // If we find a ", we need to replace it with \". This means we need to:
+            // Incremenmt str_len to account for \, reallocate dest with new str_len to account for \, and add \ into the destination
+
+            *str_len = *str_len + 1;
+            *dest = realloc(*dest, *str_len);
+
+            (*dest)[curr_idx] = '\\';       // This is just \, but C chars are acting weird
+
+            curr_idx++;
+            (*dest)[curr_idx] = '"';
+        }
+        else
+        {
+            (*dest)[curr_idx] = source[i];
+        }
+    }
+}
+
+/**
  * Read all the files given in $file_names, and outputs their content in JSON
  * @param file_names An array of file names to read
  * @param size The size of the file_names array
+ * @param json_length {Outbound} Pointer that will output length of the JSON string
  * @note By calling this function, you must deallocate json_string
  * @return JSON string
 */
-char* spill_file_json(char** file_names, int size)
+char* spill_file_json(char** file_names, int size, int* json_length)
 {
     // Create our JSON string. Let's add a size object to determine the number of items in it.
-    char* json_string;
-    int json_size = 0;
+    int json_size = 1;          // Start with 1 to take into account null terminator
+    char* json_string = malloc(json_size);
+    strcpy(json_string, "");
 
     // Add { to beginning of JSON. To do that, we will need to allocate 1 byte.
     json_size++;
@@ -194,36 +283,32 @@ char* spill_file_json(char** file_names, int size)
             continue;
         }
 
-        // Add "{File Name}": to the JSON string.
-        json_size += 3 + strlen(file_names[i]);
-        json_string = realloc(json_string, json_size);
-        strcat(json_string, "\"");
-        strcat(json_string, file_names[i]);
-        strcat(json_string, "\":");
+        // Add "{File Name\0}": to the JSON string.
+        // Our json_size has to be decreased by 1 for injection_idx since we want to overwrite the source null terminator
+        // Likewise, we're copying an extra "byte" since that's the null terminator
+        concat_mem(&json_string, json_size - 1, "\"", 2, &json_size);
+        concat_str_mem(&json_string, json_size - 1, file_names[i], strlen(file_names[i]) + 1, &json_size);
+        concat_mem(&json_string, json_size - 1, "\":", 3, &json_size);
 
         // Read the file, and put the needed items into the JSON string. Basically, we want "{File Content}",
         // Remember, we are still dynamically allocating this. Hence, we will need the file size (read: number of chars in file)
-        long file_contents_size = get_file_size(read_file);
+        long file_contents_size = get_file_size(read_file) + 1;
         char* file_contents = malloc(file_contents_size);       // We will transfer this over via strcat
         fread(file_contents, file_contents_size, 1, read_file);
-        
+        file_contents[file_contents_size - 1] = '\0';                   // C doesn't automatically add null terminators to the end of fread, so we should do it manually ourselves
+
         // Actually write the string here
-        json_size += file_contents_size + 3;
-        json_string = realloc(json_string, json_size);
+        concat_mem(&json_string, json_size - 1, "\"", 2, &json_size);
+        concat_str_mem(&json_string, json_size - 1, file_contents, file_contents_size, &json_size);   // File contents size already includes the null terminator
+        concat_mem(&json_string, json_size - 1, "\",", 3, &json_size);
 
-        strcat(json_string, "\"");
-        strcat(json_string, file_contents);
-        strcat(json_string, "\",");
-
-        // Stop them memory leaks 😤
         free(file_contents);
     }
 
-    // Close the JSON at the end
-    json_size++;
-    json_string = realloc(json_string, json_size);
-    strcat(json_string, "}");
+    // Close the JSON at the end - and overwrite the last comma with }. The null byte can stay intact - no need to copy that over.
+    concat_mem(&json_string, (json_size - 1) - 1, "}", 1, &json_size);
 
+    *json_length = json_size;
     return json_string;
 }
 
@@ -232,7 +317,12 @@ int main()
     int size;
     char** dir_names = enumerate_directory("./*", &size);
 
-    spill_file_contents(dir_names, size, "./ls_content.txt");
+    int json_length;
+    char* json_str = spill_file_json(dir_names, size, &json_length);
+    print_mem(json_str, json_length, TRUE);
+
     dealloc_str_arr(dir_names, size);
+    free(json_str);
+
     return 0;
 }
