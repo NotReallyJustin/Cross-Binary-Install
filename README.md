@@ -29,7 +29,7 @@ The code doesn't require privilege escalation for now.
 
 # Future Bucket List Ideas:
 When we actually do implement this outside of the Demo proof-of-concept: <br />
-* We're going to end up exfiltrating this data - so we'll probably not want to use TCP because I was able to catch `ls_read` sending goofy requests on my home lab pretty easily via Wireshark --> So probably do it over HTTP to make it less sus
+* We're going to end up exfiltrating this data - so we'll probably not want to use TCP because that very goofy port we used will likely get firewalled --> So probably do it over HTTP to make it less sus
 * Encode the JSON in Base64 because dealing with Binary Data is a pain
 * Add more scripts we could possibly inject
 * Do we want to encrypt this data so it doesn't get spotted as easily? Prolly symmetric encryption would do.
